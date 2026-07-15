@@ -1,0 +1,14 @@
+name = "boc"
+version = "0.1.0"
+defaultTargets = ["boc"]
+
+[[lean_lib]]
+name = "Boc"
+
+[[lean_exe]]
+name = "boc"
+root = "Main"
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
