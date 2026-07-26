@@ -13,40 +13,39 @@ The proof is deliberately split into small pieces. Each piece answers one questi
 
 ### 1. Cowns own mutable regions
 
-Every cown gets its own private slice of memory, and no two cowns share a slice. Immutable data is the one exception — since it can't change, it's safe for anyone to look at. We represent this by tagging the location with its owner. A location is therefore conceptually an owner cown + an address local to that cown. This works for both simple and realistic heaps. A cown may own one mutable cell,or it may own an entire region containing many objects. We don't really care about the region's size
+Every cown gets its own private slice of memory, and no two cowns share a slice. Immutable data is the one exception: since it can't change, it's safe for anyone to look at. We represent this by tagging the location with its owner. A location is therefore conceptually an owner cown + an address local to that cown. This works for both simple and realistic heaps. A cown may own one mutable cell,or it may own an entire region containing many objects. We don't really care about the region's size
 
 ### 2. Behaviors declare their claims
 
 A behavior has:
 
-- a unique identity
+- a unique id
 - a set of cowns it claims
 - its local execution state
 
-Because the language inside a behavior is left abstract, we ask it to promise exactly three things, like a contract the host language has to sign before it's allowed to plug into this model:
+Because the language inside a behavior is left abstract, we ask it to promise exactly three things:
 
 - Any behavior only ever touches memory inside cowns it has actually claimed
 - A step never changes anything outside the cowns it holds
 - Body progress - at every point, a well-behaved behavior is either done, able to take a step, or able to spawn a child
 
-Those three are the whole interface between "the scheduler" and "whatever language actually runs inside a task." Everything else in the proof is downstream of them.
+Everything else in the proof is downstream of them.
 
 ### 3. The scheduler is a small independent kernel
 
 The scheduler keeps two collections:
 
-- an ordered list of pending behaviors;
-- a set of active behaviors.
+- an ordered list of pending behaviors
+- a set of active behaviors
 
 The pending collection is a list because order matters. A behavior may start only if it conflicts with neither an active behavior nor an earlier pending behavior
 
 There are four kinds of transition:
 
-1. **Start.** Remove an eligible behavior from the pending list and add it to
-   the active set.
-2. **Execute.** Advance an active behavior's local state and possibly the heap.
-3. **Spawn.** Advance the parent and append a fresh child to the pending list.
-4. **Finish.** Remove a completed behavior from the active set.
+1. **Start.** Remove an eligible behavior from the pending list and add it to the active set
+2. **Execute.** Advance an active behavior's local state and possibly the heap
+3. **Spawn.** Advance the parent and append a fresh child to the pending list
+4. **Finish.** Remove a completed behavior from the active set
 
 Starting makes the behavior active with its entire claim in one transition. There is no state in which the behavior owns some of its requested cowns while waiting for the rest
 

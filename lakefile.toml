@@ -1,13 +1,9 @@
-name = "boc"
+name = "Boc"
 version = "0.1.0"
-defaultTargets = ["boc"]
+defaultTargets = ["Boc"]
 
 [[lean_lib]]
 name = "Boc"
-
-[[lean_exe]]
-name = "boc"
-root = "Main"
 
 [[require]]
 name = "mathlib"

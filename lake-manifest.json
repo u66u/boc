@@ -5,7 +5,7 @@
    "type": "git",
    "subDir": null,
    "scope": "leanprover-community",
-   "rev": "1e3b447b6258c052c9a666c9d392bd6ba5c9433b",
+   "rev": "216cd98dfcfb87e235f9f0759fe3c563f65419c1",
    "name": "mathlib",
    "manifestFile": "lake-manifest.json",
    "inputRev": "master",
@@ -91,6 +91,6 @@
    "inputRev": "v4.33.0-rc1",
    "inherited": true,
    "configFile": "lakefile.toml"}],
- "name": "boc",
+ "name": "Boc",
  "lakeDir": ".lake",
  "fixedToolchain": false}
