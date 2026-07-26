@@ -1,12 +1,14 @@
 import Boc.Scheduler
+import Boc.Simulation
 import Mathlib.Logic.Function.Basic
 
 /-!
 # Full machine
 
 A configuration pairs a scheduler state with a heap and per-behavior local
-state.  Every full transition projects to a scheduler kernel transition;
-that projection is the only bridge the safety proofs need.
+state.  Every full transition projects to a scheduler kernel transition or,
+for body-internal `execute` steps, stutters; that forward simulation is the
+only bridge the safety proofs need.
 -/
 
 namespace Boc
@@ -34,14 +36,22 @@ structure BodySemantics (Id : Type*) (Heap : Type*) (Body : Type*) where
     (heap' : Heap) → (body' : Body) → (childBody : Body) → Prop
   finished : (b : Id) → (body : Body) → Prop
 
+/-- Full-machine events: the scheduler events plus body-internal `execute`
+steps, which the scheduler abstraction cannot observe. -/
+inductive Config.Event (Id : Type*)
+  | spawn (parent : Option Id) (b : Id)
+  | execute (b : Id)
+  | start (b : Id)
+  | finish (b : Id)
+
 inductive Config.Step (claims : Id → Set Cown)
     (semantics : BodySemantics Id Heap Body) :
-    Config Id Heap Body → Config Id Heap Body → Prop
+    Config.Event Id → Config Id Heap Body → Config Id Heap Body → Prop
   | start
       {heap : Heap} {before after : List Id} {active : Set Id}
       {body : Id → Body} {b : Id}
       (is_eligible : Eligible claims b before active) :
-      Config.Step claims semantics
+      Config.Step claims semantics (.start b)
         ⟨heap, before ++ (b :: after), active, body⟩
         ⟨heap, before ++ after, insert b active, body⟩
   | execute
@@ -49,7 +59,7 @@ inductive Config.Step (claims : Id → Set Cown)
       {body : Id → Body} {b : Id} {body' : Body}
       (is_active : b ∈ active)
       (steps : semantics.step b heap (body b) heap' body') :
-      Config.Step claims semantics
+      Config.Step claims semantics (.execute b)
         ⟨heap, pending, active, body⟩
         ⟨heap', pending, active, Function.update body b body'⟩
   | spawn
@@ -58,7 +68,7 @@ inductive Config.Step (claims : Id → Set Cown)
       (is_active : b ∈ active)
       (is_fresh : Fresh q pending active)
       (spawns : semantics.spawn b heap (body b) q heap' body' childBody) :
-      Config.Step claims semantics
+      Config.Step claims semantics (.spawn (some b) q)
         ⟨heap, pending, active, body⟩
         ⟨heap', pending ++ [q], active,
           Function.update (Function.update body b body') q childBody⟩
@@ -67,25 +77,39 @@ inductive Config.Step (claims : Id → Set Cown)
       {body : Id → Body} {b : Id}
       (is_active : b ∈ active)
       (is_finished : semantics.finished b (body b)) :
-      Config.Step claims semantics
+      Config.Step claims semantics (.finish b)
         ⟨heap, pending, active, body⟩
         ⟨heap, pending, active \ {b}, body⟩
 
+/-- Some full-machine step fires, whatever its event. -/
+abbrev Config.StepAny (claims : Id → Set Cown)
+    (semantics : BodySemantics Id Heap Body)
+    (config config' : Config Id Heap Body) : Prop :=
+  ∃ e, Config.Step claims semantics e config config'
+
 abbrev Config.Reachable (claims : Id → Set Cown)
     (semantics : BodySemantics Id Heap Body) :=
-  Relation.ReflTransGen (Config.Step claims semantics)
+  Relation.ReflTransGen (Config.StepAny claims semantics)
 
-/-! ## The projection lemma -/
+/-! ## The projection simulation -/
+
+/-- Event abstraction to the scheduler kernel: body-internal `execute` steps
+are invisible, all other events map structurally. -/
+def Config.Event.project : Config.Event Id → Option (Scheduler.Event Id)
+  | .spawn parent b => some (.spawn parent b)
+  | .execute _ => none
+  | .start b => some (.start b)
+  | .finish b => some (.finish b)
 
 theorem Config.Step.projects
     {claims : Id → Set Cown}
-    {semantics : BodySemantics Id Heap Body}
-    {source target : Config Id Heap Body}
-    (step : Config.Step claims semantics source target) :
-    Scheduler.Step claims source.scheduler target.scheduler := by
+    {semantics : BodySemantics Id Heap Body} :
+    Simulation (Config.Step claims semantics) (Scheduler.Step claims)
+      Config.scheduler Config.Event.project fun _ => True := by
+  intro e source target _ step
   cases step with
   | start is_eligible => exact Scheduler.Step.start is_eligible
-  | execute is_active steps => exact Scheduler.Step.internal
+  | execute is_active steps => rfl
   | spawn is_active is_fresh spawns => exact Scheduler.Step.spawn is_fresh
   | finish is_active is_finished => exact Scheduler.Step.finish is_active
 
@@ -95,7 +119,7 @@ theorem Config.reachable_projects
     {initial config : Config Id Heap Body}
     (reachable : Config.Reachable claims semantics initial config) :
     Scheduler.Reachable claims initial.scheduler config.scheduler :=
-  reachable.lift Config.scheduler fun _ _ step => step.projects
+  Config.Step.projects.liftOption (fun _ _ _ _ _ => trivial) trivial reachable
 
 theorem Config.reachable_safe
     {claims : Id → Set Cown}

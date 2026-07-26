@@ -4,9 +4,11 @@ cd "$(dirname "$0")/.."
 
 declare -A allowed=(
   [Boc/Scheduler.lean]=""
+  [Boc/Simulation.lean]=""
+  [Boc/Queue.lean]="Boc.Scheduler"
   [Boc/Heap.lean]="Boc.Scheduler"
   [Boc/Deadlock.lean]="Boc.Scheduler"
-  [Boc/Semantics.lean]="Boc.Scheduler"
+  [Boc/Semantics.lean]="Boc.Scheduler Boc.Simulation"
   [Boc/Progress.lean]="Boc.Semantics"
   [Boc/Theorems.lean]="Boc.Deadlock Boc.Heap Boc.Semantics"
 )

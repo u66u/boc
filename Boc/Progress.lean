@@ -37,19 +37,19 @@ theorem nonstuck
     {config : Config Id Heap Body}
     (h_progress : BodyProgress semantics config) :
     Terminal config ∨
-      ∃ config', Config.Step claims semantics config config' := by
+      ∃ config', Config.StepAny claims semantics config config' := by
   obtain ⟨heap, pending, active, body⟩ := config
   rcases Set.eq_empty_or_nonempty active with rfl | ⟨b, hb⟩
   · cases pending with
     | nil => exact Or.inl ⟨rfl, rfl⟩
     | cons b rest =>
-        refine Or.inr ⟨_, Config.Step.start (before := []) ?_⟩
+        refine Or.inr ⟨_, _, Config.Step.start (before := []) ?_⟩
         exact ⟨fun a ha => absurd ha (Set.notMem_empty a),
           fun q hq => absurd hq List.not_mem_nil⟩
   · rcases h_progress b hb with is_finished | ⟨heap', body', steps⟩
       | ⟨q, heap', body', childBody, is_fresh, spawns⟩
-    · exact Or.inr ⟨_, Config.Step.finish hb is_finished⟩
-    · exact Or.inr ⟨_, Config.Step.execute hb steps⟩
-    · exact Or.inr ⟨_, Config.Step.spawn hb is_fresh spawns⟩
+    · exact Or.inr ⟨_, _, Config.Step.finish hb is_finished⟩
+    · exact Or.inr ⟨_, _, Config.Step.execute hb steps⟩
+    · exact Or.inr ⟨_, _, Config.Step.spawn hb is_fresh spawns⟩
 
 end Boc

@@ -59,7 +59,7 @@ example {Cown Id : Type*} {Heap Body : Type*} [DecidableEq Id]
     {config : Config Id Heap Body}
     (h_progress : BodyProgress semantics config) :
     Terminal config ∨
-      ∃ config', Config.Step claims semantics config config' :=
+      ∃ config', Config.StepAny claims semantics config config' :=
   nonstuck h_progress
 
 /-! ## Part 2: axiom audit -/

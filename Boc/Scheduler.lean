@@ -58,36 +58,47 @@ def Eligible (claims : Id → Set Cown) (b : Id)
 
 /-! ## Atomic scheduler transitions -/
 
+/-- Observable scheduler events.  The `parent` of a `spawn` is pure label
+data: no kernel rule constrains it.  It exists so that refinements which
+know the spawning behavior can record it. -/
+inductive Scheduler.Event (Id : Type*)
+  | spawn (parent : Option Id) (b : Id)
+  | start (b : Id)
+  | finish (b : Id)
+
 /-- `start` moves one whole behavior into the active set.  A behavior's
 entire claim is the fixed set `claims b`, so there is no partial-acquisition
 state, and there is deliberately no constructor by which an active behavior
-can acquire another cown.  `internal` is the projection of an ordinary body
-step.
+can acquire another cown.  Every step is labeled with the event it performs;
+there is no silent step at this level.
 
 Identifier freshness is not a side condition of `start`; it is carried by
 the `WellFormed` invariant. -/
 inductive Scheduler.Step (claims : Id → Set Cown) :
-    Scheduler Id → Scheduler Id → Prop
+    Scheduler.Event Id → Scheduler Id → Scheduler Id → Prop
   | start {before after : List Id} {active : Set Id} {b : Id}
       (is_eligible : Eligible claims b before active) :
-      Scheduler.Step claims
+      Scheduler.Step claims (.start b)
         ⟨before ++ (b :: after), active⟩
         ⟨before ++ after, insert b active⟩
-  | internal {scheduler : Scheduler Id} :
-      Scheduler.Step claims scheduler scheduler
-  | spawn {pending : List Id} {active : Set Id} {q : Id}
+  | spawn {parent : Option Id} {pending : List Id} {active : Set Id} {q : Id}
       (is_fresh : Fresh q pending active) :
-      Scheduler.Step claims
+      Scheduler.Step claims (.spawn parent q)
         ⟨pending, active⟩
         ⟨pending ++ [q], active⟩
   | finish {pending : List Id} {active : Set Id} {b : Id}
       (is_active : b ∈ active) :
-      Scheduler.Step claims
+      Scheduler.Step claims (.finish b)
         ⟨pending, active⟩
         ⟨pending, active \ {b}⟩
 
+/-- Some scheduler step fires, whatever its event. -/
+abbrev Scheduler.StepAny (claims : Id → Set Cown)
+    (scheduler scheduler' : Scheduler Id) : Prop :=
+  ∃ e, Scheduler.Step claims e scheduler scheduler'
+
 abbrev Scheduler.Reachable (claims : Id → Set Cown) :=
-  Relation.ReflTransGen (Scheduler.Step claims)
+  Relation.ReflTransGen (Scheduler.StepAny claims)
 
 /-! ## Preservation of scheduler invariants -/
 
@@ -113,19 +124,20 @@ theorem Safe.insert
     · exact h_safe x hxa y hya hxy
 
 theorem Scheduler.Step.preserves_safe
-    {claims : Id → Set Cown} {source target : Scheduler Id}
-    (step : Scheduler.Step claims source target)
+    {claims : Id → Set Cown} {e : Scheduler.Event Id}
+    {source target : Scheduler Id}
+    (step : Scheduler.Step claims e source target)
     (h_safe : Safe claims source.active) :
     Safe claims target.active := by
   cases step with
   | start is_eligible => exact h_safe.insert is_eligible.1
-  | internal => exact h_safe
   | spawn is_fresh => exact h_safe
   | finish is_active => exact h_safe.mono fun _ h => h.1
 
 theorem Scheduler.Step.preserves_wellFormed
-    {claims : Id → Set Cown} {source target : Scheduler Id}
-    (step : Scheduler.Step claims source target)
+    {claims : Id → Set Cown} {e : Scheduler.Event Id}
+    {source target : Scheduler Id}
+    (step : Scheduler.Step claims e source target)
     (h_wf : source.WellFormed) :
     target.WellFormed := by
   cases step with
@@ -138,8 +150,7 @@ theorem Scheduler.Step.preserves_wellFormed
       · refine h_wf.2 x ?_ hxa
         rw [List.mem_append] at hx ⊢
         exact hx.imp id (List.mem_cons_of_mem b)
-  | internal => exact h_wf
-  | @spawn pending active q is_fresh =>
+  | @spawn parent pending active q is_fresh =>
       refine ⟨h_wf.1.append (List.nodup_singleton q)
         (List.disjoint_singleton.mpr is_fresh.1), fun x hx => ?_⟩
       rcases List.mem_append.mp hx with hxp | hxq
@@ -156,7 +167,9 @@ theorem Scheduler.reachable_safe
     Safe claims scheduler.active := by
   induction reachable with
   | refl => exact initial_safe
-  | tail _ step ih => exact step.preserves_safe ih
+  | tail _ step ih =>
+      obtain ⟨_, hstep⟩ := step
+      exact hstep.preserves_safe ih
 
 theorem Scheduler.reachable_wellFormed
     {claims : Id → Set Cown} {initial scheduler : Scheduler Id}
@@ -165,7 +178,9 @@ theorem Scheduler.reachable_wellFormed
     scheduler.WellFormed := by
   induction reachable with
   | refl => exact initial_wf
-  | tail _ step ih => exact step.preserves_wellFormed ih
+  | tail _ step ih =>
+      obtain ⟨_, hstep⟩ := step
+      exact hstep.preserves_wellFormed ih
 
 /-- On a safe active set, a cown pins down its holder uniquely. -/
 theorem Safe.eq_of_mem_claims
