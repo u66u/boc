@@ -11,6 +11,7 @@ declare -A allowed=(
   [Boc/Semantics.lean]="Boc.Scheduler Boc.Simulation"
   [Boc/Progress.lean]="Boc.Semantics"
   [Boc/Theorems.lean]="Boc.Deadlock Boc.Heap Boc.Semantics"
+  [Boc/Protocol.lean]=""
 )
 
 fail=0

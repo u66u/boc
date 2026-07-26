@@ -1,6 +1,7 @@
 import Boc.Scheduler
 import Boc.Simulation
 import Boc.Queue
+import Boc.Protocol
 import Boc.Heap
 import Boc.Deadlock
 import Boc.Semantics
