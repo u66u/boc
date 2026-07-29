@@ -13,7 +13,7 @@ The proof is deliberately split into small pieces. Each piece answers one questi
 
 ### 1. Cowns own mutable regions
 
-Every cown gets its own private slice of memory, and no two cowns share a slice. Immutable data is the one exception: since it can't change, it's safe for anyone to look at. We represent this by tagging the location with its owner. A location is therefore conceptually an owner cown + an address local to that cown. This works for both simple and realistic heaps. A cown may own one mutable cell,or it may own an entire region containing many objects. We don't really care about the region's size
+Every cown gets its own private slice of memory, and no two cowns share a slice. Immutable data is the one exception: since it can't change, it's safe for anyone to look at. We represent this by tagging the location with its owner. A location is therefore conceptually an owner cown + an address local to that cown. This works for both simple and realistic heaps. A cown may own one mutable cell, or it may own an entire region containing many objects. We don't really care about the region's size
 
 ### 2. Behaviors declare their claims
 
@@ -23,10 +23,9 @@ A behavior has:
 - a set of cowns it claims
 - its local execution state
 
-Because the language inside a behavior is left abstract, we ask it to promise exactly three things:
+Because the language inside a behavior is left abstract, we ask it to promise exactly two things:
 
-- Any behavior only ever touches memory inside cowns it has actually claimed
-- A step never changes anything outside the cowns it holds
+- Access confinement - a behavior only ever touches mutable memory (reads or writes) inside cowns it has actually claimed. Concretely, the language supplies a `may_access` relation that must cover every real access, and heap isolation requires every covered access to stay within the behavior's claim. This subsumes the usual frame condition: a write outside the cowns a behavior holds is exactly the kind of access the relation must rule out
 - Body progress - at every point, a well-behaved behavior is either done, able to take a step, or able to spawn a child
 
 Everything else in the proof is downstream of them.
@@ -49,7 +48,9 @@ There are four kinds of transition:
 
 Starting makes the behavior active with its entire claim in one transition. There is no state in which the behavior owns some of its requested cowns while waiting for the rest
 
-Spawning is asynchronous. The parent does not acquire the child's cowns anddoes not wait for the child. Finishing removes the behavior from the active set,which releases all of its claims together.
+Spawning is asynchronous. The parent does not acquire the child's cowns and does not wait for the child. Finishing removes the behavior from the active set, which releases all of its claims together.
+
+A spawned id only has to be fresh with respect to the current pending list and active set, so the id of an already finished behavior may be reused. Nothing in the proof depends on uniqueness across time.
 
 The full semantics contain heaps and body states, but the kernel doesn't. A small projection lemma shows that every full transition either performs the corresponding scheduler transition or leaves the scheduler state unchanged, and this is the only bridge needed
 
@@ -73,25 +74,26 @@ The only other place a `waiting` relationship could sneak in is the ordering of 
 
 The former requires that you use exclusively cowns for concurrency, you can't spawn arbitrary threads, but BOC itself can't get stuck. The proof is just an exhaustive check of the possible states: if anything is running, body progress guarantees it can step, spawn, or finish. If nothing is running but something is pending, the first thing in the queue has nothing ahead of it and nothing running to conflict with, so it's automatically eligible to start. The only case left is nothing running and nothing pending, which is the actual terminal state
 
-If two behaviors conflict and one appears earlier in program order, the second one can't start until the first one finishes - not while it's pending (blocked by the earlier-pending check) and not while it's running (blocked by the running-conflict check). So conflicting behaviors execute in the order they were spawned
+If two behaviors conflict and one appears earlier in program order, the second one can't start until the first one finishes - not while it's pending (blocked by the earlier-pending check) and not while it's running (blocked by the running-conflict check). Both blocking facts are proved as standalone lemmas; the end-to-end statement that conflicting behaviors complete in spawn order is not formalized
 
 ### 6. What it does and doesn't prove
 
-What it proves: if a host language honestly satisfies the three promises (access confinement, frame property, body progress), and the scheduler follows exactly these four rules, then the resulting system can never race and can never deadlock on cown acquisition as a matter of pure logical necessity. It also proves the system never gets stuck prematurely, and that conflicting tasks run in a predictable order.
+What it proves: if a host language honestly satisfies the two promises (access confinement, body progress), and the scheduler follows exactly these four rules, then the resulting system can never race and can never deadlock on cown acquisition as a matter of pure logical necessity. It also proves the system never gets stuck prematurely, and provides the local blocking lemmas that force conflicting behaviors to start in queue order.
 
 What it doesn't prove:
 
-- It cannot prove that a host language implement the 3 promises stated above, that's the compiler's job
-- It doesn't verify any actual implementation. Real BoC runtimes acquire cowns using lock-free queues, CAS operations, and a sorted acquisition order across possibly many CPU cores at once This proof replaces all of that with a single atomic "Start" step
+- It cannot prove that a host language implements the two promises stated above, that's the compiler's job
+- It doesn't verify any actual implementation. Real BoC runtimes acquire cowns using lock-free queues, CAS operations, and a sorted acquisition order across possibly many CPU cores at once. This proof replaces all of that with a single atomic "Start" step
 - It says nothing about fairness, starvation, or termination. "Not stuck" only means some transition is always available, it doesn't promise every pending task eventually gets its turn, or that computation as a whole ever finishes
 
 Therefore, it is not suitable to be used as a verified runtime or a compiler target, although it can be a foundation to one
 
 ## Usage
 
-In a Mathlib-enabled Lean 4 project you can check the public entry point with:
+Build the whole development (the first build downloads the Mathlib cache):
 
 ```sh
-lake env lean boc.lean
+lake exe cache get
+lake build
 ```
 

@@ -3,85 +3,53 @@ import Boc.Semantics
 /-!
 # Conditional whole-machine progress
 
-This module assumes progress of behavior bodies.  That assumption is not used
-by scheduler safety, race freedom, or acquisition-deadlock freedom.
+This module assumes progress of behavior bodies.  That assumption is not
+used by scheduler safety, race freedom, or acquisition-deadlock freedom.
 -/
 
 namespace Boc
 
-universe uC uI uH uB
+variable {Cown Id : Type*} {Heap Body : Type*}
+variable [DecidableEq Id]
 
-variable {Cown : Type uC} {Id : Type uI}
-variable {Heap : Type uH} {Body : Type uB}
-
-def body_progress
+def BodyProgress
     (semantics : BodySemantics Id Heap Body)
     (config : Config Id Heap Body) : Prop :=
-  ∀ b,
-    b ∈ config.active →
-      semantics.finished b (config.body b)
-      ∨ (∃ heap' body',
-          semantics.step b config.heap (config.body b) heap' body')
-      ∨ (∃ q heap' body' child_body,
-          fresh q config.pending config.active ∧
-          semantics.spawn b config.heap (config.body b)
-            q heap' body' child_body)
+  ∀ b ∈ config.active,
+    semantics.finished b (config.body b)
+    ∨ (∃ heap' body',
+        semantics.step b config.heap (config.body b) heap' body')
+    ∨ (∃ q heap' body' childBody,
+        Fresh q config.pending config.active ∧
+        semantics.spawn b config.heap (config.body b)
+          q heap' body' childBody)
 
-def terminal
-    (config : Config Id Heap Body) : Prop :=
-  config.pending = [] ∧ ∀ b, b ∉ config.active
+def Terminal (config : Config Id Heap Body) : Prop :=
+  config.pending = [] ∧ config.active = ∅
 
+/-- A configuration with body progress is terminal or can step.  No
+well-formedness is needed: when nothing is active, the head of the pending
+queue has nothing ahead of it and nothing to conflict with, so it is always
+eligible to start. -/
 theorem nonstuck
-    [DecidableEq Id]
     {claims : Id → Set Cown}
     {semantics : BodySemantics Id Heap Body}
     {config : Config Id Heap Body}
-    (h_well_formed : well_formed config.scheduler)
-    (h_progress : body_progress semantics config) :
-    terminal config ∨
-      ∃ config', global_step claims semantics config config' := by
-  rcases config with ⟨heap, pending, active, body⟩
-  by_cases some_active : ∃ b, b ∈ active
-  · rcases some_active with ⟨b, hb⟩
-    rcases h_progress b hb with is_finished | can_step | can_spawn
-    · exact Or.inr ⟨_, global_step.finish
-        heap pending active body b hb is_finished⟩
-    · rcases can_step with ⟨heap', body', steps⟩
-      exact Or.inr ⟨_, global_step.execute
-        heap heap' pending active body b body' hb steps⟩
-    · rcases can_spawn with
-        ⟨q, heap', body', child_body, is_fresh, spawns⟩
-      exact Or.inr ⟨_, global_step.spawn
-        heap heap' pending active body b q body' child_body
-        hb is_fresh spawns⟩
+    (h_progress : BodyProgress semantics config) :
+    Terminal config ∨
+      ∃ config', Config.Step claims semantics config config' := by
+  obtain ⟨heap, pending, active, body⟩ := config
+  rcases Set.eq_empty_or_nonempty active with rfl | ⟨b, hb⟩
   · cases pending with
-    | nil =>
-        exact Or.inl ⟨rfl, fun b hb => some_active ⟨b, hb⟩⟩
+    | nil => exact Or.inl ⟨rfl, rfl⟩
     | cons b rest =>
-        have is_fresh : b ∉ ([] : List Id) ++ rest := by
-          simpa only [List.nil_append] using
-            (List.nodup_cons.mp h_well_formed.1).1
-        have is_eligible : eligible claims b [] active := by
-          constructor
-          · intro a ha
-            exact (some_active ⟨a, ha⟩).elim
-          · intro q hq
-            exact (List.not_mem_nil hq).elim
-        exact Or.inr ⟨_, global_step.start
-          heap [] rest active body b is_fresh is_eligible⟩
-
-theorem reachable_nonstuck
-    [DecidableEq Id]
-    {claims : Id → Set Cown}
-    {semantics : BodySemantics Id Heap Body}
-    {initial config : Config Id Heap Body}
-    (initial_well_formed : well_formed initial.scheduler)
-    (reachable : global_reachable claims semantics initial config)
-    (h_progress : body_progress semantics config) :
-    terminal config ∨
-      ∃ config', global_step claims semantics config config' := by
-  exact nonstuck
-    (global_reachable_well_formed initial_well_formed reachable)
-    h_progress
+        refine Or.inr ⟨_, Config.Step.start (before := []) ?_⟩
+        exact ⟨fun a ha => absurd ha (Set.notMem_empty a),
+          fun q hq => absurd hq List.not_mem_nil⟩
+  · rcases h_progress b hb with is_finished | ⟨heap', body', steps⟩
+      | ⟨q, heap', body', childBody, is_fresh, spawns⟩
+    · exact Or.inr ⟨_, Config.Step.finish hb is_finished⟩
+    · exact Or.inr ⟨_, Config.Step.execute hb steps⟩
+    · exact Or.inr ⟨_, Config.Step.spawn hb is_fresh spawns⟩
 
 end Boc
