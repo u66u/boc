@@ -2,12 +2,6 @@ import Boc.Deadlock
 import Boc.Heap
 import Boc.Semantics
 
-/-!
-# Top-level theorems
-
-Connect full executions to the independent scheduler and memory proofs.
--/
-
 namespace Boc
 
 variable {Cown Id Slot : Type*} {Heap Body : Type*}

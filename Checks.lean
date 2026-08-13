@@ -1,24 +1,11 @@
 import Boc
 import Lean
 
-/-!
-# Quality gates: statement pinning + axiom audit
-
-CI runs `lake env lean Checks.lean`.
-
-Part 1 restates the trusted-surface theorems verbatim.  If a refactor drifts a
-statement, this file breaks — changing it is how a statement change is made
-deliberate and visible in review.
-
-Part 2 asserts the axiom footprint of the trusted surface.  `sorry` anywhere in
-the proof cone shows up as `sorryAx` and fails the gate.
--/
-
 namespace Boc.Checks
 
 open Boc
 
-/-! ## Part 1: pinned statements -/
+/-! pinned statements -/
 
 example {Cown Id : Type*} {claims : Id → Set Cown}
     {initial scheduler : Scheduler Id}
@@ -62,7 +49,7 @@ example {Cown Id : Type*} {Heap Body : Type*} [DecidableEq Id]
       ∃ config', Config.StepAny claims semantics config config' :=
   nonstuck h_progress
 
-/-! ## Part 2: axiom audit -/
+/-! axiom audit -/
 
 open Lean in
 #eval show CoreM Unit from do

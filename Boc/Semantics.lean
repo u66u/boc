@@ -81,7 +81,7 @@ inductive Config.Step (claims : Id → Set Cown)
         ⟨heap, pending, active, body⟩
         ⟨heap, pending, active \ {b}, body⟩
 
-/-- Some full-machine step fires, whatever its event. -/
+/-- some full-machine step fires, whatever its event. -/
 abbrev Config.StepAny (claims : Id → Set Cown)
     (semantics : BodySemantics Id Heap Body)
     (config config' : Config Id Heap Body) : Prop :=
@@ -91,7 +91,6 @@ abbrev Config.Reachable (claims : Id → Set Cown)
     (semantics : BodySemantics Id Heap Body) :=
   Relation.ReflTransGen (Config.StepAny claims semantics)
 
-/-! ## The projection simulation -/
 
 /-- Event abstraction to the scheduler kernel: body-internal `execute` steps
 are invisible, all other events map structurally. -/

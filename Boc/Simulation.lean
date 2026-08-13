@@ -5,11 +5,7 @@ import Mathlib.Logic.Relation
 /-!
 # Forward simulation for labeled transition systems
 
-Generic machinery relating two labeled step relations along a state
-abstraction.  The event abstraction is partial: a concrete event mapped to
-`none` must stutter, leaving the abstract state unchanged.  This is exactly
-the case `Relation.ReflTransGen.lift` cannot express, so the reachability
-transport is proved here once.
+Generic machinery relating two labeled step relations along a state abstraction
 -/
 
 namespace Boc
@@ -17,7 +13,7 @@ namespace Boc
 variable {State Event : Type*}
 variable {StateA EventA StateB EventB StateC EventC : Type*}
 
-/-- The unlabeled transition relation of a labeled system: some event fires. -/
+/-- some event fires. -/
 abbrev StepAny (Step : Event → State → State → Prop) (s s' : State) : Prop :=
   ∃ e, Step e s s'
 
@@ -48,7 +44,7 @@ theorem reachable_invariant
       obtain ⟨e, hstep⟩ := step
       exact preserves e _ _ ih hstep
 
-/-- Reachability transport: a simulation whose invariant is preserved lifts
+/--  any simulation whose invariant is preserved lifts
 reflexive-transitive reachability along `f`, `none`-labeled steps contributing
 stutters. -/
 theorem Simulation.liftOption
@@ -100,8 +96,6 @@ theorem Simulation.comp
   | none =>
       rw [heq] at hAB
       exact congrArg g hAB
-
-/-! ## List glue for start-refinement obligations -/
 
 /-- Splitting a filtered list at the unique element where two predicates flip
 from `true` to `false`: where `p` and `q` agree except at `b ∈ l`, the
